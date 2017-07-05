@@ -1,148 +1,199 @@
 heat_template_version: 2015-10-15
-description: >
-  This template creates one frontend server and two identical backend servers. Frontend server is available to outside world which means can be connected to it from internet. Where as backend servers is only available to frontend server which means only frontend server can connect to backend servers. This template nests another template which creats single VM.  
-
-
-#command to run the file
-#openstack stack create -t server-landscape.yaml --parameter key_name=newKey --parameter public_net=tu-internal ser
-
-#to check outputs:
-#openstack stack output show ser --all
-
-#to check status of stack:
-#openstack stack list
-
-#to check instances:
-#openstack server list
-
-#to delete stack
-#openstack stack delete ser
-
+description: Landscape of one frontend VM and two backend VMs running Docker
 
 parameters:
-
-    key_name:
+    external_net:
+        type: string
+        label: External network for allocating a floating IP
+        constraints:
+            - custom_constraint: neutron.network
+    key_pair:
         type: string
         label: Key Pair
         constraints:
             - custom_constraint: nova.keypair
-    public_net:
+    flavor:
         type: string
-        description: public network id
+        label: Flavor
+        constraints:
+            - custom_constraint: nova.flavor
+    image:
+        type: string
+        label: Image Name
+        constraints:
+            - custom_constraint: glance.image
+    zone:
+        type: string
+        label: Availability Zone
+        default: Default
+
 resources:
 
-    #Following creates security group allowing inbound connections on port 80 and port 22 
-
-    server_security_group:
-        type: OS::Neutron::SecurityGroup
-        properties: 
-                description: add rules to open port 80 and 22 to security group
-                name: security-group
-                rules: 
-                      - protocol: tcp
-                        remote_ip_prefix: 0.0.0.0/0
-                        port_range_min: 80
-                        port_range_max: 80
-                      - protocol: tcp
-                        remote_ip_prefix: 0.0.0.0/0
-                        port_range_min: 22
-                        port_range_max: 22
-  #Following creates security group where no traffic allowed from outside world. Port 22 is for ssh connection
-    private_security_group:
-        type: OS::Neutron::SecurityGroup
-        properties: 
-                description: private security group where no traffic allowed from outside world
-                name: private_security-group
-                rules:
-                      - protocol: tcp
-                        remote_ip_prefix: 0.0.0.0/0
-                        port_range_min: 22
-                        port_range_max: 22
-    
-    
-                      
-#3 different parts of the network : One network, one underlying subnet and one network connecting private network with the public tu-internal network
-    private_net:
+    network:
         type: OS::Neutron::Net
         properties:
-          name: private-net
+            name:
+                str_replace:
+                    template: STACK-net
+                    params:
+                        STACK: { get_param: "OS::stack_name" }
 
-    private_subnet:
+    subnet:
         type: OS::Neutron::Subnet
         properties:
-          network_id: { get_resource: private_net }
-          cidr: 172.16.2.0/24
-          gateway_ip: 172.16.2.1    
+            name:
+                str_replace:
+                    template: STACK-subnet
+                    params:
+                        STACK: { get_param: "OS::stack_name" }
+            network: { get_resource: network }
+            cidr: "192.168.0.0/24"
 
     router:
-       type: OS::Neutron::Router
-       properties: 
-          external_gateway_info: 
-                    network: {get_param: public_net}
-  
-    router_interface:
-       type: OS::Neutron::RouterInterface
-       properties:
-          router_id: {get_resource: router}
-          subnet_id: {get_resource: private_subnet}  
- 
-          
-#frontend_server has server.yaml type. It instantiates VM in a private subnet. 
-
-    frontend_server:
-        type: server.yaml
+        type: OS::Neutron::Router
         properties:
-                name: frontend_server
-                key_name: {get_param : key_name}
-                image: ubuntu-16.04                
-                flavor: Cloud Computing
-                zone: Cloud Computing 2017                
-                network: {get_resource: private_net}
-                subnetID: {get_resource: private_subnet}
-                security_groups: 
-                       - {get_resource: server_security_group}
+            name:
+                str_replace:
+                    template: STACK-router
+                    params:
+                        STACK: { get_param: "OS::stack_name" }
+            external_gateway_info:
+                network: { get_param: external_net }
+
+    router_interface:
+        type: OS::Neutron::RouterInterface
+        properties:
+            router: { get_resource: router }
+            subnet: { get_resource: subnet }
+
+    security_group_frontend:
+        type: OS::Neutron::SecurityGroup
+        properties:
+            name:
+                str_replace:
+                    template: STACK-security-group-frontend
+                    params:
+                        STACK: { get_param: "OS::stack_name" }
+            rules:
+                - { protocol: icmp }
+                - { protocol: tcp, port_range_min: 22, port_range_max: 22 }
+                - { protocol: tcp, port_range_min: 80, port_range_max: 80 }
                 
-   #to associate floating ip to frontend_server
+    security_group_docker_manager:
+        type: OS::Neutron::SecurityGroup
+        properties:
+            name:
+                str_replace:
+                    template: STACK-security-group-docker-manager
+                    params:
+                        STACK: { get_param: "OS::stack_name" }
+            rules:
+                - 
+                    protocol: tcp
+                    port_range_min: 2377
+                    port_range_max: 2377
+                    remote_mode: remote_group_id
+                    remote_group_id: { get_resource: security_group_backend }
+
+    security_group_backend:
+        type: OS::Neutron::SecurityGroup
+        properties:
+            name:
+                str_replace:
+                    template: STACK-security-group-backend
+                    params:
+                        STACK: { get_param: "OS::stack_name" }
+            rules:
+                - 
+                    protocol: icmp
+                    remote_mode: remote_group_id
+                    remote_group_id: { get_resource: security_group_frontend }
+                - 
+                    protocol: tcp
+                    port_range_min: 22
+                    port_range_max: 22
+                    remote_mode: remote_group_id
+                    remote_group_id: { get_resource: security_group_frontend }
+                - 
+                    protocol: tcp
+                    port_range_min: 8000
+                    port_range_max: 8000
+                    remote_mode: remote_group_id
+                    remote_group_id: { get_resource: security_group_frontend }
+
     floating_ip:
         type: OS::Neutron::FloatingIP
-        properties: 
-              floating_network: {get_param: public_net}
-
-    association: 
-        type: OS::Neutron::FloatingIPAssociation
         properties:
-                floatingip_id: {get_resource: floating_ip} 
-                port_id: {get_attr: [frontend_server, port]}
+            floating_network: { get_param: external_net }
+            port_id: { get_attr: [ frontend, port ] }
 
-#backend_servers is a Resource group
-    backend_servers:
+    frontend:
+        type: server.yaml
+        properties:
+            name: 
+                str_replace:
+                    template: STACK-frontend
+                    params:
+                        STACK: { get_param: "OS::stack_name" }
+            key_pair: { get_param: key_pair }
+            image: { get_param: image }
+            flavor: { get_param: flavor }
+            zone: { get_param: zone }
+            network: { get_resource: network }
+            security_groups: [ { get_resource: security_group_frontend }, { get_resource: security_group_docker_manager } ]
+            init_code: |
+                # Install an up-to-date version of Docker
+                apt update
+                apt install -y linux-image-extra-$(uname -r) linux-image-extra-virtual apt-transport-https ca-certificates curl software-properties-common
+                curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+                apt-key fingerprint 0EBFCD88
+                add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+                apt update
+                apt install -y docker-ce
+                echo '{"experimental": true}' >> /etc/docker/daemon.conf
+                service docker restart
+
+                # Install Docker Compose (not necessary, but convenient)
+                wget -O /usr/local/bin/docker-compose -L https://github.com/docker/compose/releases/download/1.14.0/docker-compose-`uname -s`-`uname -m`
+                chmod +x /usr/local/bin/docker-compose
+
+    backends:
         type: OS::Heat::ResourceGroup
         properties:
-             count: 2
-             resource_def: 
-                     type: server.yaml
-                     properties:
-                           name: backend_server_%index%
-                           key_name: {get_param : key_name}
-                           image: ubuntu-16.04                
-                           flavor: Cloud Computing
-                           zone: Cloud Computing 2017                
-                           network: {get_resource: private_net}
-                           subnetID: {get_resource: private_subnet}
-                           security_groups: 
-                               - {get_resource: private_security_group}
-   
-
+            count: 2
+            resource_def:
+                type: server.yaml
+                properties:
+                    name: 
+                        str_replace:
+                            template: STACK-backend-%index% 
+                            params:
+                                STACK: { get_param: "OS::stack_name" }
+                    key_pair: { get_param: key_pair }
+                    image: { get_param: image }
+                    flavor: { get_param: flavor }
+                    zone: { get_param: zone }
+                    network: { get_resource: network }
+                    security_groups: [ { get_resource: security_group_backend } ]
+                    init_code: |
+                        # Install an up-to-date version of Docker
+                        apt update
+                        apt install -y linux-image-extra-$(uname -r) linux-image-extra-virtual apt-transport-https ca-certificates curl software-properties-common
+                        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+                        apt-key fingerprint 0EBFCD88
+                        add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+                        apt update
+                        apt install -y docker-ce
+                        echo '{"experimental": true}'' >> /etc/docker/daemon.conf
+                        service docker restart
 
 outputs:
-#    test_out: 
-#       value: {get_attr: [frontend_server, port]}
+    private_ip:
+        description: Private virtual IP of the frontend server
+        value: { get_attr: [ frontend, ip ] }
     floating_ip:
-      description: floating ip  
-      value: {get_attr: [floating_ip,floating_ip_address]}
-    frontend_server:
-      description: frontend server
-      value: {get_attr: [frontend_server,first_address]}
-#    backend_servers:
-#      description: frontend server
-#      value: {get_attr: [frontend_server,first_address]}
+        description: Floating IP of the frontend server
+        value: { get_attr: [ floating_ip, floating_ip_address ] }
+    backend_ips:
+        description: Virtual IPs of the backend servers
+        value: { get_attr: [ backends, ip ] }

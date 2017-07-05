@@ -1,12 +1,11 @@
 heat_template_version: 2015-10-15
 description: One VM instance
 
-#openstack stack create -t server.yaml  --parameter name=serverInstance2 --parameter key_name=newKey --parameter flavor="Cloud Computing" --parameter  image=ubuntu-16.04 --parameter network=cc17-net --parameter zone="Cloud Computing 2017" --parameter security_groups=default stack1
 parameters:
     name:
         type: string
         label: Name of the VM
-    key_name:
+    key_pair:
         type: string
         label: Key Pair
         constraints:
@@ -34,9 +33,10 @@ parameters:
         type: comma_delimited_list
         label: Security Group(s)
         default: "default"
-    subnetID:
+    init_code:
         type: string
-        label: subnet ID 
+        label: Script to be executed after creating the Server
+        default: ""
 
 resources:
 
@@ -46,8 +46,6 @@ resources:
         type: OS::Neutron::Port
         properties:
             network: { get_param: network }
-            fixed_ips:
-                - subnet_id: { get_param: subnetID }
             name:
                 str_replace:
                     template: port-VM_NAME
@@ -56,16 +54,31 @@ resources:
             security_groups:
                 get_param: security_groups
     
+    cloud_init:
+        type: OS::Heat::CloudConfig
+        properties:
+            cloud_config:
+                runcmd:
+                    - str_replace:
+                        template: |
+                            bash -s <<"xxx_CUSTOM_SETUP_CODE_xxx"
+                            $THE_CODE
+                            xxx_CUSTOM_SETUP_CODE_xxx
+                        params:
+                            $THE_CODE: { get_param: init_code }
+
     instance:
         type: OS::Nova::Server
         properties:
             name: { get_param: name }
-            key_name: { get_param: key_name }
+            key_name: { get_param: key_pair }
             image: { get_param: image }
             flavor: { get_param: flavor }
             availability_zone: { get_param: zone }
             networks:
                 - port: { get_resource: port }
+            user_data_format: RAW
+            user_data: { get_resource: cloud_init }
 
 outputs:
     ip:
