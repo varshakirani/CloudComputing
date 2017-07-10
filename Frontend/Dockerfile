@@ -1,5 +1,8 @@
-#docker buid -f Dockerfile -t images/
+#sudo docker build -t  custom-nginx . --no-cache=true
+# sudo docker run --name group17-nginx-container -d -p 8080:80 custom-nginx
 
+##TODO : Mount the volume properly. I feel mounting is the error ecause I cant see any new directories in the container after build abd run -varsha
+## TODO : map the port of container to port of VM to chek locally. This is optional -Varsha
 #base image is official nginx container image
 FROM nginx
 
@@ -17,5 +20,11 @@ COPY fix-nginx-conf.sh script/
 RUN mkdir hypervisor_etc
 VOLUME /hypervisor_etc
 
-ENTRYPOINT [./script/fix-nginx-conf.sh]
-RUN nginx
+#parameters are backend server IP
+RUN ./script/fix-nginx-conf.sh "192.168.0.4 192.168.0.3"
+
+RUN mkdir temp
+
+
+
+
