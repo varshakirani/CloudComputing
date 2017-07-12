@@ -18,10 +18,10 @@ COPY nginx.conf /etc/nginx/
 #create a directory to copy fix-nginx-conf.sh and copy the file onto it
 COPY fix-nginx-conf.sh /etc/nginx/
 
-
+WORKDIR /etc/nginx
 
 #parameters are backend server IP
-RUN ./etc/nginx/fix-nginx-conf.sh "192.168.0.4 192.168.0.3"
+RUN ./fix-nginx-conf.sh "192.168.0.4 192.168.0.3"
 
 ENTRYPOINT ["usr/sbin/nginx"]
 

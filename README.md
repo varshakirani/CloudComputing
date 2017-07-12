@@ -25,5 +25,15 @@ Assignment 3 from TU Berlin
 ->to run the image
 	->$ sudo docker run -d frontend
 
+->to check conatiner 
+	->$ sudo docker exec -t -i mycontainer /bin/bash
+
+->Pushing to docker hub (change varshakirani to respective docker id user)
+	->$ sudo docker login
+	->$ sudo docker tag frontend varshakirani/frontend
+	->$ sudo docker push varshakirani/frontend
+	->$ sudo docker logout
+	
+
 
 
