@@ -23,6 +23,6 @@ WORKDIR /etc/nginx
 #parameters are backend server IP
 RUN ./fix-nginx-conf.sh "192.168.0.4 192.168.0.3"
 
-ENTRYPOINT ["usr/sbin/nginx"]
+ENTRYPOINT ["nginx"]
 
 
