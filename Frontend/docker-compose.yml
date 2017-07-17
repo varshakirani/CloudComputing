@@ -1,1 +1,18 @@
-[[TODO]]
+version: "3.2"
+services:
+  frontend:
+      image: varshakirani/frontend
+      deploy:
+         replicas: 2
+         placement:
+              constraints:
+                  - node.hostname == ser-frontend
+         restart_policy:
+              condition: on-failure
+      volumes:
+         - /etc:/hypervisor_etc
+      ports:
+         - "80:80"
+      environment:
+         CC_BACKEND_SERVERS: "192.168.0.4 192.168.0.3"
+
