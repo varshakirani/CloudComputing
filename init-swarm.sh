@@ -8,12 +8,16 @@ STACK="$1"
 # The three variables correspond to output variables of the server-landscape.yaml template.
 echo "Obtainining information about stack ${STACK}..."
 #export MASTER_FLOATING=$(openstack ip floating list | sed -n '4p' | cut -d " " -f 4 )
-export MASTER_FLOATING=$( openstack server show -f 'json' ${STACK}-frontend | python -c 'import sys, json; print json.load(sys.stdin)["addresses"]'|cut -d "=" -f 2| cut -d "," -f 2)
-echo $MASTER_FLOATING
-export LC_MASTER_PRIVATE=$( openstack server show -f 'json' ${STACK}-frontend | python -c 'import sys, json; print json.load(sys.stdin)["addresses"]'|cut -d "=" -f 2| cut -d "," -f 1)
-echo $LC_MASTER_PRIVATE
+#export MASTER_FLOATING=$( openstack server show -f 'json' ${STACK}-frontend | python -c 'import sys, json; print json.load(sys.stdin)["addresses"]'|cut -d "=" -f 2| cut -d "," -f 2)
+#echo $MASTER_FLOATING
+#export LC_MASTER_PRIVATE=$( openstack server show -f 'json' ${STACK}-frontend | python -c 'import sys, json; print json.load(sys.stdin)["addresses"]'|cut -d "=" -f 2| cut -d "," -f 1)
+#echo $LC_MASTER_PRIVATE
 export LC_BACKEND_IPS=$({ openstack server show -f 'json' ${STACK}-backend-0 | python -c 'import sys, json; print json.load(sys.stdin)["addresses"]'|cut -d "=" -f 2 & openstack server show -f 'json' ${STACK}-backend-1 | python -c 'import sys, json; print json.load(sys.stdin)["addresses"]'|cut -d "=" -f 2; } | paste -d" " -s)
-echo $LC_BACKEND_IPS
+#echo $LC_BACKEND_IPS
+export MASTER_FLOATING=$(openstack stack output show ser floating_ip -f value -c output_value)
+export LC_MASTER_PRIVATE=$(openstack stack output show ser private_ip -f value -c output_value)
+#export LC_BACKEND_IPS=$(openstack stack output show ser backend_ips -f value -c output_value | jq @tsv)
+
 # Copy both docker-compose files to the frontend server
 $(scp -r Frontend/docker-compose.yml ubuntu@$MASTER_FLOATING:~/Frontend/docker-compose.yml)
 $(scp -r Backend/docker-compose.yml ubuntu@$MASTER_FLOATING:~/Backend/docker-compose.yml)
@@ -37,14 +41,17 @@ SSHOPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=3 -o BatchMode=yes"
 ssh-keyscan $LC_BACKEND_IPS > ~/.ssh/known_hosts
 
 # Obtain a token that can be used to join the swarm as a worker
+# sudo docker swarm leave 
 TOKEN=$(sudo docker swarm join-token worker -q)
 
 # Prepare the script to execute on the backends to join the docker swarm.
 # First make sure that docker is running properly...
 backend_setup_1="{ sudo docker ps &> /dev/null || sudo service docker restart; }"
 
+echo "error checking"
 # ... then join the docker swarm on the frontend server
 backend_setup_2="sudo docker swarm join --token $TOKEN $LC_MASTER_PRIVATE:2377"
+
 
 # Connect to the backend servers and make them join the swarm
 for i in $LC_BACKEND_IPS; do ssh $SSHOPTS ubuntu@$i "$backend_setup_1 && $backup_setup_2"; done
