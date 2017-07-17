@@ -48,20 +48,22 @@ TOKEN=$(sudo docker swarm join-token worker -q)
 # First make sure that docker is running properly...
 backend_setup_1="{ sudo docker ps &> /dev/null || sudo service docker restart; }"
 
-echo "error checking"
 # ... then join the docker swarm on the frontend server
-backend_setup_2="sudo docker swarm join --token $TOKEN $LC_MASTER_PRIVATE:2377"
+backend_setup_2="sudo docker swarm join --token ${TOKEN} ${LC_MASTER_PRIVATE}:2377"
 
 
 # Connect to the backend servers and make them join the swarm
-for i in $LC_BACKEND_IPS; do ssh $SSHOPTS ubuntu@$i "$backend_setup_1 && $backup_setup_2"; done
+for i in $LC_BACKEND_IPS; 
+ do ssh $SSHOPTS ubuntu@$i "$backend_setup_1 && $backup_setup_2";
+    echo $SSHOPTS;
+ done;
 
 # Launch the backend stack
- sudo -E docker stack deploy -c Backend/docker-compose.yml backend
+sudo -E docker stack deploy -c Backend/docker-compose.yml a3
 
 # Launch the frontend stack
 export CC_BACKEND_SERVERS="$LC_BACKEND_IPS"
- sudo -E docker stack deploy -c Backend/docker-compose.yml frontend
+sudo -E docker stack deploy -c Frontend/docker-compose.yml a3
 
 xxxxxxxxxxxxxxxxx
 
@@ -72,6 +74,6 @@ echo -e "\nRunning the following script on $MASTER_FLOATING:\n\n$INIT_SCRIPT\n"
 # Those variables are named LC_* because the default sshd config allows sending variables named like this.
 ssh -o SendEnv="LC_MASTER_PRIVATE LC_BACKEND_IPS" -A ubuntu@$MASTER_FLOATING "$INIT_SCRIPT"
 
-echo
+#echo
 echo "If everything worked so far, you can execute the following to test your setup:"
 echo "python3 Scripts/test-deployment.py $MASTER_FLOATING"
