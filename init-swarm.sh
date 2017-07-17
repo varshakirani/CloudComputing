@@ -54,9 +54,8 @@ backend_setup_2="sudo docker swarm join --token ${TOKEN} ${LC_MASTER_PRIVATE}:23
 
 # Connect to the backend servers and make them join the swarm
 for i in $LC_BACKEND_IPS; 
- do ssh $SSHOPTS ubuntu@$i "$backend_setup_1 && $backup_setup_2";
-    echo $SSHOPTS;
- done;
+ do ssh $SSHOPTS ubuntu@$i "$backend_setup_1 && $backend_setup_2";
+done;
 
 # Launch the backend stack
 sudo -E docker stack deploy -c Backend/docker-compose.yml a3

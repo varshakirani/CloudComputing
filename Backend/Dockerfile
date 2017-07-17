@@ -1,4 +1,4 @@
-#docker buid -f Dockerfile -t images/
+#docker build -f Dockerfile -t images/
 
 #base image is official nginx container image
 FROM nginx

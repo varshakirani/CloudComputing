@@ -1,6 +1,6 @@
 version: "3.2"
 services:
-  frontend:
+  backend:
       image: varshakirani/backend
       deploy:
          replicas: 5
@@ -12,4 +12,4 @@ services:
       volumes:
          - /etc:/hypervisor_etc
       ports:
-         - "80:8000"
+         - "8000:80"

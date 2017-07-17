@@ -3,10 +3,13 @@ Assignment 3 from TU Berlin
 
 -> do not delete stack
 -> Use id_rsa and id_rsa.pub key pair to connect via ssh to the frontend server.
--> $ ssh -i ~/.ssh/id_rsa.pub ubuntu@10.200.2.59
+-> $ ssh -i ~/.ssh/id_rsa.pub ubuntu@10.200.1.196
+-> start ssh-agent in frontend to store private key for ssh connection to backened
+$ eval "$(ssh-agent -s)"
+$ ssh-add ~/.ssh/id_rsa
 -> to copy Frontend and Backend folders onto frontend server
-	->$ scp -r Frontend ubuntu@10.200.2.59:~
-	->$ scp -r Backend ubuntu@10.200.2.59:~
+	->$ scp -r Frontend ubuntu@10.200.1.196:~
+	->$ scp -r Backend ubuntu@10.200.1.196:~
 -> To list all containers
 	->$ sudo docker ps -a -q
 -> To list all images
@@ -33,7 +36,7 @@ Assignment 3 from TU Berlin
 	->$ sudo docker tag frontend varshakirani/frontend
 	->$ sudo docker push varshakirani/frontend
 	->$ sudo docker logout
-	
+
 
 
 
