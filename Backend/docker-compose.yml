@@ -1,12 +1,12 @@
 version: "3.2"
 services:
   backend:
-      image: varshakirani/backend
+      image: varshakirani/backh
       deploy:
          replicas: 5
          placement:
               constraints:
-                  - node.hostname != ser-frontend
+                  - node.hostname != ${LC_STACKNAME}-frontend
          restart_policy:
               condition: on-failure
       volumes:

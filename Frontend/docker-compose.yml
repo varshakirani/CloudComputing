@@ -1,12 +1,12 @@
 version: "3.2"
 services:
   frontend:
-      image: varshakirani/frontend
+      image: varshakirani/frontvar
       deploy:
          replicas: 2
          placement:
               constraints:
-                  - node.hostname == ser-frontend
+                  - node.hostname == ${LC_STACKNAME}-frontend
          restart_policy:
               condition: on-failure
       volumes:
@@ -14,5 +14,5 @@ services:
       ports:
          - "80:80"
       environment:
-         CC_BACKEND_SERVERS: ${CC_BACKEND_SERVERS}
+         - CC_BACKEND_SERVERS=${LC_BACKEND_IPS}
 

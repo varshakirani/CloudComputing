@@ -7,16 +7,13 @@ STACK="$1"
 # Obtain information from OpenStack. It is important that the last two variables are named LC_* (see last comment in this script).
 # The three variables correspond to output variables of the server-landscape.yaml template.
 echo "Obtainining information about stack ${STACK}..."
-#export MASTER_FLOATING=$(openstack ip floating list | sed -n '4p' | cut -d " " -f 4 )
-#export MASTER_FLOATING=$( openstack server show -f 'json' ${STACK}-frontend | python -c 'import sys, json; print json.load(sys.stdin)["addresses"]'|cut -d "=" -f 2| cut -d "," -f 2)
-#echo $MASTER_FLOATING
-#export LC_MASTER_PRIVATE=$( openstack server show -f 'json' ${STACK}-frontend | python -c 'import sys, json; print json.load(sys.stdin)["addresses"]'|cut -d "=" -f 2| cut -d "," -f 1)
-#echo $LC_MASTER_PRIVATE
-export LC_BACKEND_IPS=$({ openstack server show -f 'json' ${STACK}-backend-0 | python -c 'import sys, json; print json.load(sys.stdin)["addresses"]'|cut -d "=" -f 2 & openstack server show -f 'json' ${STACK}-backend-1 | python -c 'import sys, json; print json.load(sys.stdin)["addresses"]'|cut -d "=" -f 2; } | paste -d" " -s)
-#echo $LC_BACKEND_IPS
-export MASTER_FLOATING=$(openstack stack output show ser floating_ip -f value -c output_value)
-export LC_MASTER_PRIVATE=$(openstack stack output show ser private_ip -f value -c output_value)
-#export LC_BACKEND_IPS=$(openstack stack output show ser backend_ips -f value -c output_value | jq @tsv)
+
+#export LC_BACKEND_IPS=$({ openstack server show -f 'json' ${STACK}-backend-0 | python -c 'import sys, json; print json.load(sys.stdin)["addresses"]'|cut -d "=" -f 2 & openstack server show -f 'json' ${STACK}-backend-1 | python -c 'import sys, json; print json.load(sys.stdin)["addresses"]'|cut -d "=" -f 2; } | paste -d" " -s)
+
+export LC_BACKEND_IPS=$(openstack stack output show ${STACK} backend_ips -f value -c output_value | jq -r @tsv)
+export MASTER_FLOATING=$(openstack stack output show ${STACK} floating_ip -f value -c output_value)
+export LC_MASTER_PRIVATE=$(openstack stack output show ${STACK} private_ip -f value -c output_value)
+export LC_STACKNAME=$STACK
 
 # Copy both docker-compose files to the frontend server
 $(scp -r Frontend/docker-compose.yml ubuntu@$MASTER_FLOATING:~/Frontend/docker-compose.yml)
@@ -58,11 +55,11 @@ for i in $LC_BACKEND_IPS;
 done;
 
 # Launch the backend stack
-sudo -E docker stack deploy -c Backend/docker-compose.yml a3
+sudo -E docker stack deploy --compose-file Backend/docker-compose.yml ${LC_STACKNAME}container
 
 # Launch the frontend stack
 export CC_BACKEND_SERVERS="$LC_BACKEND_IPS"
-sudo -E docker stack deploy -c Frontend/docker-compose.yml a3
+sudo -E docker stack deploy --compose-file Frontend/docker-compose.yml ${LC_STACKNAME}container
 
 xxxxxxxxxxxxxxxxx
 
@@ -71,7 +68,7 @@ echo -e "\nRunning the following script on $MASTER_FLOATING:\n\n$INIT_SCRIPT\n"
 
 # Execute the script on the frontend server. Make sure to pass along the two variables obtained from OpenStack above.
 # Those variables are named LC_* because the default sshd config allows sending variables named like this.
-ssh -o SendEnv="LC_MASTER_PRIVATE LC_BACKEND_IPS" -A ubuntu@$MASTER_FLOATING "$INIT_SCRIPT"
+ssh -o SendEnv=" LC_MASTER_PRIVATE LC_BACKEND_IPS LC_STACKNAME" -A ubuntu@$MASTER_FLOATING "$INIT_SCRIPT"
 
 #echo
 echo "If everything worked so far, you can execute the following to test your setup:"
